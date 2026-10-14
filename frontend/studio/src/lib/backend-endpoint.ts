@@ -1,5 +1,4 @@
 export const LOCAL_BACKEND_URL = "http://127.0.0.1:8000";
-export const PRODUCTION_BACKEND_URL = "https://quantumrisc.onrender.com";
 
 export function resolveBackendApiBase(): string {
   const envUrl = import.meta.env.VITE_API_URL as string | undefined;
@@ -9,7 +8,9 @@ export function resolveBackendApiBase(): string {
 
   const hostname = window.location.hostname;
   if (hostname === "localhost" || hostname === "127.0.0.1") return LOCAL_BACKEND_URL;
-  return PRODUCTION_BACKEND_URL;
+  // Production Studio is served by the local FastAPI application unless an
+  // explicit VITE_API_URL selects another backend.
+  return window.location.origin.replace(/\/+$/, "");
 }
 
 export function resolveBackendWsBase(): string {

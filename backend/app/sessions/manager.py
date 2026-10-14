@@ -470,7 +470,17 @@ class SessionManager:
         current_sample = timeline[-1]["changed"] if timeline else {}
         discovery = self._discovery_payload()
         signal_names = list(session.parsed.get("signals", []))
-        cache_signals = self._topic_signals(signal_names, ("cache", "l1i", "l1d", "hit", "miss", "tag", "line", "victim", "way", "set"))
+        # Cache: only match signals from dedicated cache module hierarchy names.
+        # The current RTL (rtl/cache/) contains NO cache implementation.
+        # We use exact module-path matching rather than loose keywords to avoid
+        # falsely classifying ALU/control signals as cache telemetry.
+        CACHE_MODULE_PREFIXES = ("l1i", "l1d", "icache", "dcache", "cache", "victim", "mshr")
+        rtl_cache_dir = self.settings.repo_root / "rtl" / "cache"
+        rtl_cache_exists = rtl_cache_dir.is_dir() and any(rtl_cache_dir.glob("*.sv"))
+        if rtl_cache_exists:
+            cache_signals = self._topic_signals(signal_names, CACHE_MODULE_PREFIXES)
+        else:
+            cache_signals = []  # No cache module in RTL — do not match generic signals
         branch_signals = self._topic_signals(signal_names, ("branch", "jump", "flush", "predict", "ghr", "pht", "btb", "pc", "zero", "stall"))
         verification_signals = self._topic_signals(signal_names, ("assert", "cover", "coverage", "scoreboard", "fail", "pass", "check"))
         fpga_signals = self._topic_signals(signal_names, ("lut", "ff", "bram", "dsp", "timing", "slack", "fmax", "critical"))
@@ -502,8 +512,8 @@ class SessionManager:
             cache={
                 "signals": cache_signals,
                 "current": self._topic_values(current_sample, cache_signals),
-                "available": bool(cache_signals),
-                "reason": "" if cache_signals else "The current backend snapshot does not emit cache-specific signals.",
+                "available": rtl_cache_exists and bool(cache_signals),
+                "reason": "No cache implementation exists in current RTL" if not rtl_cache_exists else ("" if cache_signals else "Cache module present but emits no signals."),
             },
             branch={
                 "signals": branch_signals,

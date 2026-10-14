@@ -84,21 +84,21 @@ export function groupBits(bits: string, size = 4): string {
  * after every reset even if the simulation has 20 cycles of data.
  */
 export function currentCycle(playback: any, metrics: any): number {
+  const fromCursor = asNumber(playback?.["cursor"] ?? playback?.["cycle"], -1);
+  if (fromCursor >= 0) return fromCursor;
   const fromMetrics = asNumber(metrics?.["cycles"], -1);
   if (fromMetrics > 0) return fromMetrics;
-  const fromPlayback = asNumber(playback?.["cursor"] ?? playback?.["cycle"], -1);
-  if (fromPlayback >= 0) return fromPlayback;
   return 0;
 }
 
 export function currentStatusLabel(status: string, connected: boolean, transportState?: string): string {
   if (transportState === "connected" && connected) return "connected";
-  if (transportState === "reconnecting") return "reconnecting to Render backend";
+  if (transportState === "reconnecting") return "reconnecting to backend";
   if (transportState === "backend-unavailable") return "backend unavailable";
   if (transportState === "websocket-failed") return "websocket failed";
-  if (transportState === "connecting") return "connecting to Render backend";
+  if (transportState === "connecting") return "connecting to backend";
   if (transportState === "closed") return "session closed";
-  if (!connected) return "connecting to Render backend";
+  if (!connected) return "connecting to backend";
   if (status === "created" || status === "connecting") return "waiting for compilation";
   if (status === "compiled") return "compiled, awaiting run";
   if (status === "running") return "running live";

@@ -1,64 +1,31 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
-import tsconfigPaths from "vite-tsconfig-paths";
-import path from "path";
+import { resolve } from "path";
 
-/**
- * QuantumRISC Studio v3 — Vite SPA Configuration
- *
- * Vite + React + TanStack Router client-side SPA build.
- * Output: dist/index.html + dist/assets/ served by the FastAPI backend.
- */
 export default defineConfig({
-  plugins: [
-    TanStackRouterVite({
-      routesDirectory: "./src/routes",
-      generatedRouteTree: "./src/routeTree.gen.ts",
-      // SPA mode: no server-side rendering
-      enableRouteGeneration: true,
-    }),
-    react(),
-    tailwindcss(),
-    tsconfigPaths(),
-  ],
+  // base must match the backend mount path so asset URLs resolve correctly
+  // when served via http://127.0.0.1:8000/studio
+  base: "/studio/",
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": resolve(__dirname, "src"),
     },
   },
-  build: {
-    outDir: "dist",
-    emptyOutDir: true,
-    sourcemap: false,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          react: ["react", "react-dom"],
-          router: ["@tanstack/react-router"],
-          query: ["@tanstack/react-query"],
-          radix: [
-            "@radix-ui/react-dialog",
-            "@radix-ui/react-dropdown-menu",
-            "@radix-ui/react-tooltip",
-            "@radix-ui/react-tabs",
-            "@radix-ui/react-scroll-area",
-          ],
-          charts: ["recharts"],
-          icons: ["lucide-react"],
-        },
-      },
-    },
-  },
-  // Needed for SPA routing: the FastAPI backend handles /studio,
-  // and the frontend handles sub-routes client-side.
-  base: "/studio/",
   server: {
     port: 5173,
+    host: "127.0.0.1",
     proxy: {
-      "/api": "http://127.0.0.1:8000",
-      "/ws": { target: "ws://127.0.0.1:8000", ws: true },
+      "/api": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
+      "/ws": {
+        target: "ws://127.0.0.1:8000",
+        ws: true,
+        changeOrigin: true,
+      },
     },
   },
 });

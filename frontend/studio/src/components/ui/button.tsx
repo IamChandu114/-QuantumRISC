@@ -9,6 +9,15 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        tool: "studio-tool hover:bg-accent hover:text-foreground",
+        search: "studio-search hover:bg-accent",
+        rail: "studio-rail-button hover:bg-accent",
+        stage: "pipeline-stage hover:border-primary/60",
+        data: "data-button hover:bg-accent",
+        tab: "panel-tab hover:text-foreground",
+        trace: "trace-cell hover:bg-accent",
+        relationship: "relationship-button hover:bg-accent",
+        command: "command-button hover:bg-accent",
         default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         outline:
@@ -18,6 +27,8 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
+        compact: "h-7 px-2 text-xs",
+        micro: "h-6 w-6 p-0",
         default: "h-9 px-4 py-2",
         sm: "h-8 rounded-md px-3 text-xs",
         lg: "h-10 rounded-md px-8",
