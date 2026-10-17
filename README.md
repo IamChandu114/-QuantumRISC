@@ -8,9 +8,13 @@
 
 <p align="center">
   <a href="#at-a-glance">At a Glance</a> &middot;
+  <a href="#engineering-highlights">Engineering Highlights</a> &middot;
   <a href="#architecture-overview">Architecture</a> &middot;
   <a href="#cpu-microarchitecture">Microarchitecture</a> &middot;
+  <a href="#microarchitectural-design-trade-offs">Design Trade-offs</a> &middot;
+  <a href="#claim-verification-table">Claim Verification</a> &middot;
   <a href="#simulation-orchestration-and-backend">Backend Engine</a> &middot;
+  <a href="#end-to-end-api-workflow-curl">API Workflow (curl)</a> &middot;
   <a href="#vcd-parsing-and-state-reconstruction">VCD Reconstruction</a> &middot;
   <a href="#websocket-telemetry-protocol">WebSocket Protocol</a> &middot;
   <a href="#quantumrisc-studio">Studio UI</a> &middot;
@@ -29,12 +33,12 @@
 | Aspect | Implementation in Repository | Evidence Source |
 | :--- | :--- | :--- |
 | **Target ISA** | RV32I integer subset (R-type, I-type ALU, LW, SW, BEQ, JAL) | [`rtl/cpu/decoder.sv`](rtl/cpu/decoder.sv), [`rtl/cpu/control_unit.sv`](rtl/cpu/control_unit.sv) |
-| **HDL & Standard** | SystemVerilog (IEEE 1800-2012) | [`rtl/`](rtl/), compiled via `iverilog -g2012` |
-| **Pipeline Stages** | Modular 5-stage architecture: Fetch (IF), Decode (ID), Execute (EX), Memory (MEM), Writeback (WB) | [`rtl/cpu/`](rtl/cpu/), [`rtl/pipeline/`](rtl/pipeline/) |
+| **HDL & Standard** | SystemVerilog (IEEE 1800-2012) | [`rtl/`](rtl/), compiled with `iverilog -g2012` |
+| **Pipeline Cores** | Modular 5-stage core (`pipeline_cpu_complete.sv`) and single-cycle baseline (`cpu_top.sv`) | [`rtl/cpu/pipeline_cpu_complete.sv`](rtl/cpu/pipeline_cpu_complete.sv), [`rtl/cpu/cpu_top.sv`](rtl/cpu/cpu_top.sv) |
 | **Hazard Handling** | Load-use hazard detection unit (stall insertion) and EX/MEM, MEM/WB data forwarding unit | [`rtl/pipeline/hazard_detection_unit.sv`](rtl/pipeline/hazard_detection_unit.sv), [`rtl/pipeline/forwarding_unit.sv`](rtl/pipeline/forwarding_unit.sv) |
-| **Simulation Toolchain** | Icarus Verilog (`iverilog`) compiler + `vvp` runtime generating standard VCD traces | [`backend/app/sim/compile_manager.py`](backend/app/sim/compile_manager.py), [`backend/app/sim/run_manager.py`](backend/app/sim/run_manager.py) |
-| **Backend Orchestration**| FastAPI (Python 3.10+) managing process isolation, SQLite session persistence, and WebSocket broadcasting | [`backend/app/main.py`](backend/app/main.py), [`backend/app/sessions/manager.py`](backend/app/sessions/manager.py) |
-| **Telemetry & Parsing** | Custom non-blocking VCD parser extracting cycle timestamps, signal transitions, and register/pipeline frames | [`backend/app/sim/vcd_parser.py`](backend/app/sim/vcd_parser.py), [`backend/app/trackers/`](backend/app/trackers/) |
+| **Simulation Toolchain** | Icarus Verilog (`iverilog`) compiler + `vvp` runtime generating standard IEEE 1364 VCD traces | [`backend/app/sim/compile_manager.py`](backend/app/sim/compile_manager.py), [`backend/app/sim/run_manager.py`](backend/app/sim/run_manager.py) |
+| **Backend Orchestration**| FastAPI (Python 3.10+) managing process execution, SQLite session persistence, and WebSocket broadcasting | [`backend/app/main.py`](backend/app/main.py), [`backend/app/sessions/manager.py`](backend/app/sessions/manager.py) |
+| **Telemetry & Parsing** | Custom VCD parser extracting cycle timestamps, signal transitions, and register/pipeline frames | [`backend/app/sim/vcd_parser.py`](backend/app/sim/vcd_parser.py), [`backend/app/trackers/`](backend/app/trackers/) |
 | **Engineering Studio** | React 19, TypeScript, Vite, Tailwind CSS v4, Radix UI; interactive pipeline, register table, schematics, and timeline scrubbing | [`frontend/studio/`](frontend/studio/) |
 | **Automated Testing** | 8 backend integration/unit tests (`pytest`) + 22 SystemVerilog testbenches | [`backend/tests/`](backend/tests/), [`verification/tb/`](verification/tb/) |
 
@@ -44,9 +48,17 @@
 
 ---
 
-## Architecture Overview
+## Engineering Highlights
 
-QuantumRISC bridges the gap between RTL simulation engines and software engineering interfaces. Instead of requiring engineers to run CLI simulators, dump waveforms, and manually inspect GTKWave traces alongside disconnected disassembly, QuantumRISC integrates the entire loop into a cohesive, backend-driven pipeline:
+1. **Hardware-to-Software State Mapping**: Employs non-intrusive VCD waveform signal extraction to reconstruct microarchitectural register, memory, hazard, and pipeline state frames directly from open-source Icarus Verilog runs.
+2. **Dual Core Architecture Support**: Supports both a single-cycle educational baseline ([`cpu_top.sv`](rtl/cpu/cpu_top.sv)) and a modular 5-stage pipelined design ([`pipeline_cpu_complete.sv`](rtl/cpu/pipeline_cpu_complete.sv)) selectable via discovery and session configuration.
+3. **Hazard & Forwarding Telemetry**: Analyzes sequential instruction streams to identify Read-After-Write (RAW) data dependencies and verify active `EX/MEM -> EX` and `MEM/WB -> EX` forwarding paths.
+4. **Reactive WebSocket Broadcasting**: Manages simulation playback with pause, resume, reset, and single-cycle stepping over WebSocket connections backed by asynchronous Python queues.
+5. **Decoupled Verification Architecture**: Isolates compilation and simulation tasks into ephemeral session workspaces under `runs/{session_id}/`, persisting session metadata in SQLite.
+
+---
+
+## Architecture Overview
 
 ```mermaid
 flowchart LR
@@ -70,8 +82,6 @@ flowchart LR
 ---
 
 ## CPU Microarchitecture
-
-The core microarchitecture implements a 32-bit RISC-V integer datapath organized into five distinct pipeline stages:
 
 ```mermaid
 flowchart LR
@@ -128,17 +138,17 @@ Instruction decoding and control flow are implemented across [`rtl/cpu/decoder.s
 | | `SLL` | `7'b0110011` (`0x33`) | `3'b001` | Any | `R[rd] = R[rs1] << R[rs2][4:0]` |
 | | `SRL` | `7'b0110011` (`0x33`) | `3'b101` | Any | `R[rd] = R[rs1] >> R[rs2][4:0]` (logical) |
 | | `SLT` | `7'b0110011` (`0x33`) | `3'b010` | Any | `R[rd] = ($signed(R[rs1]) < $signed(R[rs2])) ? 1 : 0` |
-| **I-Type** | `ADDI` | `7'b0010011` (`0x13`) | `3'b000` | — | `R[rd] = R[rs1] + imm` |
-| | `ANDI` | `7'b0010011` (`0x13`) | `3'b111` | — | `R[rd] = R[rs1] & imm` |
-| | `ORI` | `7'b0010011` (`0x13`) | `3'b110` | — | `R[rd] = R[rs1] | imm` |
-| | `XORI` | `7'b0010011` (`0x13`) | `3'b100` | — | `R[rd] = R[rs1] ^ imm` |
-| | `SLLI` | `7'b0010011` (`0x13`) | `3'b001` | — | `R[rd] = R[rs1] << imm[4:0]` |
-| | `SRLI` | `7'b0010011` (`0x13`) | `3'b101` | — | `R[rd] = R[rs1] >> imm[4:0]` (logical) |
-| | `SLTI` | `7'b0010011` (`0x13`) | `3'b010` | — | `R[rd] = ($signed(R[rs1]) < $signed(imm)) ? 1 : 0` |
-| | `LW` | `7'b0000011` (`0x03`) | `3'b010` | — | `R[rd] = Mem32[R[rs1] + imm]` (word aligned) |
-| **S-Type** | `SW` | `7'b0100011` (`0x23`) | `3'b010` | — | `Mem32[R[rs1] + imm] = R[rs2]` (word aligned) |
-| **B-Type** | `BEQ` | `7'b1100011` (`0x63`) | `3'b000` | — | `if (R[rs1] == R[rs2]) PC = PC + imm` |
-| **J-Type** | `JAL` | `7'b1101111` (`0x6F`) | — | — | `PC = PC + imm; R[rd] = PC + 4` |
+| **I-Type** | `ADDI` | `7'b0010011` (`0x13`) | `3'b000` | &mdash; | `R[rd] = R[rs1] + imm` |
+| | `ANDI` | `7'b0010011` (`0x13`) | `3'b111` | &mdash; | `R[rd] = R[rs1] & imm` |
+| | `ORI` | `7'b0010011` (`0x13`) | `3'b110` | &mdash; | `R[rd] = R[rs1] | imm` |
+| | `XORI` | `7'b0010011` (`0x13`) | `3'b100` | &mdash; | `R[rd] = R[rs1] ^ imm` |
+| | `SLLI` | `7'b0010011` (`0x13`) | `3'b001` | &mdash; | `R[rd] = R[rs1] << imm[4:0]` |
+| | `SRLI` | `7'b0010011` (`0x13`) | `3'b101` | &mdash; | `R[rd] = R[rs1] >> imm[4:0]` (logical) |
+| | `SLTI` | `7'b0010011` (`0x13`) | `3'b010` | &mdash; | `R[rd] = ($signed(R[rs1]) < $signed(imm)) ? 1 : 0` |
+| | `LW` | `7'b0000011` (`0x03`) | `3'b010` | &mdash; | `R[rd] = Mem32[R[rs1] + imm]` (word aligned) |
+| **S-Type** | `SW` | `7'b0100011` (`0x23`) | `3'b010` | &mdash; | `Mem32[R[rs1] + imm] = R[rs2]` (word aligned) |
+| **B-Type** | `BEQ` | `7'b1100011` (`0x63`) | `3'b000` | &mdash; | `if (R[rs1] == R[rs2]) PC = PC + imm` |
+| **J-Type** | `JAL` | `7'b1101111` (`0x6F`) | &mdash; | &mdash; | `PC = PC + imm; R[rd] = PC + 4` |
 
 ### Explicitly Unsupported / Absent Instructions
 
@@ -146,49 +156,44 @@ Instruction decoding and control flow are implemented across [`rtl/cpu/decoder.s
 * **Privilege & Traps**: No CSR registers, no M/S/U privilege rings, no exception/interrupt handlers.
 * **Extensions**: Standard extensions M (Hardware Multiply/Divide), A (Atomics), F/D (Floating Point), and C (Compressed) are absent.
 
-### RTL Module Inventory
-
-```
-rtl/
-├── cpu/
-│   ├── alu.sv                    # 32-bit arithmetic & logic execution unit
-│   ├── alu_control.sv            # Funct3/funct7 to 4-bit ALU control translation
-│   ├── control_unit.sv           # Main opcode decoder emitting datapath control lines
-│   ├── cpu_top.sv                # Single-cycle top-level integration
-│   ├── decoder.sv                # 32-bit instruction field slicing (rd, rs1, rs2, funct3, funct7)
-│   ├── execute_stage.sv          # ALU and operand multiplexing stage
-│   ├── immediate_generator.sv    # Sign-extension logic for I, S, B, U, J immediate formats
-│   ├── instruction_memory.sv     # 256x32-bit combinational read instruction RAM
-│   ├── memory_stage.sv           # Data memory interface stage
-│   ├── pc.sv                     # Synchronous 32-bit program counter with enable/reset
-│   ├── pipeline_cpu_complete.sv  # 5-stage pipelined processor top-level with debug probes
-│   ├── register_file.sv          # 32x32-bit dual-read, single-write synchronous register file
-│   └── writeback_stage.sv        # Memory-to-register writeback multiplexer
-├── memory/
-│   └── data_memory.sv            # 256x32-bit synchronous write, combinational read data RAM
-└── pipeline/
-    ├── branch_unit.sv            # Static branch/jump PC target calculator
-    ├── ex_mem.sv                 # EX/MEM pipeline stage transition registers
-    ├── forwarding_unit.sv        # RAW hazard data forwarding selector
-    ├── hazard_detection_unit.sv  # Load-use pipeline stall generator
-    ├── id_ex.sv                  # ID/EX pipeline stage transition registers
-    ├── if_id.sv                  # IF/ID pipeline stage transition registers (with synchronous flush)
-    └── mem_wb.sv                 # MEM/WB pipeline stage transition registers
-```
-
-### Microarchitectural Decisions and Implementation Details
+### Microarchitectural Details
 
 * **Hazard Detection**: [`hazard_detection_unit.sv`](rtl/pipeline/hazard_detection_unit.sv) evaluates load-use hazards during Decode. If `MemRead_EX` is asserted and `rd_EX != 0` matches `rs1_ID` or `rs2_ID`, it asserts `stall = 1'b1`.
 * **Data Forwarding**: [`forwarding_unit.sv`](rtl/pipeline/forwarding_unit.sv) compares `rs1_EX` and `rs2_EX` against destination registers in `MEM` (`rd_MEM`) and `WB` (`rd_WB`). If matching and write-enabled, it sets `ForwardA`/`ForwardB` to `2'b10` (EX hazard forwarding from MEM) or `2'b01` (MEM hazard forwarding from WB).
-* **Branch Resolution**: [`branch_unit.sv`](rtl/pipeline/branch_unit.sv) resolves branches statically based on the ALU zero flag. When `Jump` or `(Branch && Zero)` is true, target is computed as `PC + immediate`; otherwise `PC + 4`.
-* **Register Zero (x0)**: Enforced in [`register_file.sv`](rtl/cpu/register_file.sv) via synchronous write filtering (`if (we && rd != 0) registers[rd] <= write_data; registers[0] <= 32'b0;`).
+* **Branch Resolution & Pipeline Flush**: [`branch_unit.sv`](rtl/pipeline/branch_unit.sv) calculates branch targets combinationally. In `pipeline_cpu_complete.sv`, the `flush` port of `if_id.sv` is tied to `1'b0`; full speculative branch flushing is not integrated in the top-level wire loop.
+* **Register Zero (x0)**: Enforced in [`register_file.sv`](rtl/cpu/register_file.sv) via synchronous write filtering (`if (we && rd != 0) registers[rd] <= write_data; registers[0] <= 32'b0;`). No internal write-through bypass exists; simultaneous read/write to the same register in the same cycle requires external forwarding.
 * **Memory Model**: Harvard architecture. Both [`instruction_memory.sv`](rtl/cpu/instruction_memory.sv) and [`data_memory.sv`](rtl/memory/data_memory.sv) contain 256 words (1,024 bytes), indexed using word-aligned bits `address[9:2]`. Sub-word writes and unaligned access are not implemented.
+* **Program Loading**: Programs are loaded via Verilog `initial` blocks in `instruction_memory.sv` (defaulting to 4 sample instructions) or `$readmemh` memory initialization templates. Dynamic runtime firmware uploading via backend API is not implemented.
+
+---
+
+## Microarchitectural Design Trade-offs
+
+| Design Area | Chosen Implementation | Trade-off / Rationale |
+| :--- | :--- | :--- |
+| **Pipeline Registers** | Explicit modular register modules (`if_id.sv`, `id_ex.sv`, etc.) | Increases file count and port wiring complexity, but enables isolated per-stage testbench verification. |
+| **Hazard Strategy** | Combinational forwarding + load-use stall unit | Avoids pipeline flushes on standard ALU data dependencies; stall is required only on 1-cycle load-use latency. |
+| **Branch Handling** | Combinational target adder in branch unit | Eliminates complex branch history tables and predictor state machines; branches resolve with static target computation. |
+| **Register File Read** | Asynchronous combinational read ports | Simplifies Decode stage timing; requires external forwarding unit since write-through bypass is omitted from the register macro. |
+| **Memory Bus** | Word-aligned 32-bit width (`address[9:2]`) | Avoids byte-enable lane multiplexers and sign-extension hardware, restricting software to full-word memory operations. |
+
+---
+
+## Claim Verification Table
+
+| Claim | Verified in Code | Primary Source File | Notes |
+| :--- | :---: | :--- | :--- |
+| **5-Stage Pipeline** | Yes | [`rtl/pipeline/`](rtl/pipeline/) | Modular stage registers and top-level implementation. |
+| **RAW Hazard Detection** | Yes | [`rtl/pipeline/hazard_detection_unit.sv`](rtl/pipeline/hazard_detection_unit.sv) | Detects load-use hazard condition. |
+| **ALU Operations** | Yes | [`rtl/cpu/alu.sv`](rtl/cpu/alu.sv) | ADD, SUB, AND, OR, XOR, SLL, SRL, SLT. SRA and SLTU are absent. |
+| **Dynamic Branch Predictor** | No | [`rtl/pipeline/branch_unit.sv`](rtl/pipeline/branch_unit.sv) | Static target adder only. |
+| **Hardware L1 Cache** | No | [`rtl/cache/`](rtl/cache/) | Directory exists but contains no RTL modules. |
+| **FPGA Synthesis Metrics** | No | [`backend/app/sessions/manager.py`](backend/app/sessions/manager.py) | Backend reports synthesis telemetry unavailable. |
+| **Automated Backend Tests** | Yes | [`backend/tests/`](backend/tests/) | 8 pytest tests pass locally in 15.35s. |
 
 ---
 
 ## Simulation Orchestration and Backend
-
-The backend is built with FastAPI and runs on Python 3.10+. It manages workspace discovery, compiler invocations, simulation lifecycles, and client subscriptions.
 
 ```mermaid
 sequenceDiagram
@@ -202,8 +207,8 @@ sequenceDiagram
 
     Client->>API: POST /api/sessions {"top": "pipeline_cpu_complete", "testbench": "pipeline_cpu_complete_tb"}
     API->>Mgr: create_session()
-    Mgr-->>API: SessionRecord (id=664dae8d2e6e)
-    API-->>Client: 200 OK {"id": "664dae8d2e6e"}
+    Mgr-->>API: SessionRecord (id=a7b58b880215)
+    API-->>Client: 200 OK {"id": "a7b58b880215"}
 
     Client->>API: POST /api/sessions/{id}/compile
     API->>Mgr: compile(session_id)
@@ -249,11 +254,43 @@ sequenceDiagram
 
 ---
 
+## End-to-End API Workflow (curl)
+
+The complete lifecycle can be executed from a shell against a running backend:
+
+```bash
+# 1. Check backend toolchain and database health
+curl -s http://127.0.0.1:8000/api/health
+
+# 2. Discover available RTL modules and testbenches
+curl -s http://127.0.0.1:8000/api/discovery
+
+# 3. Create a new simulation session
+curl -s -X POST http://127.0.0.1:8000/api/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"top": "pipeline_cpu_complete", "testbench": "pipeline_cpu_complete_tb"}'
+# Response returns session ID: e.g. "a7b58b880215"
+
+# 4. Trigger Icarus Verilog compilation
+curl -s -X POST http://127.0.0.1:8000/api/sessions/a7b58b880215/compile
+
+# 5. Run simulation to produce VCD and timeline
+curl -s -X POST http://127.0.0.1:8000/api/sessions/a7b58b880215/run
+
+# 6. Step simulation forward by one cycle
+curl -s -X POST http://127.0.0.1:8000/api/sessions/a7b58b880215/step
+
+# 7. Retrieve full architectural state snapshot
+curl -s http://127.0.0.1:8000/api/sessions/a7b58b880215/snapshot
+```
+
+---
+
 ## VCD Parsing and State Reconstruction
 
 Waveform traces are parsed from standard VCD format into structured microarchitectural state by [`VCDParser`](backend/app/sim/vcd_parser.py):
 
-1. **Hierarchy & Symbol Resolution**: Scans `$scope` and `$upscope` tokens to build hierarchical dot-delimited signal identifiers (e.g. `pipeline_cpu_complete_tb.DUT.RF.registers`). Maps 1-to-many compressed VCD character codes via regex (`^\$var\s+\w+\s+(\d+)\s+(\S+)\s+(.+?)\s+\$end$`).
+1. **Hierarchy & Symbol Resolution**: Scans `$scope` and `$upscope` tokens to build hierarchical dot-delimited signal identifiers. Maps 1-to-many compressed VCD character codes via regex (`^\$var\s+\w+\s+(\d+)\s+(\S+)\s+(.+?)\s+\$end$`).
 2. **Transition Parsing**: Scans timestamp tokens (`#<timestamp>`), tracking scalar (`0`, `1`, `x`, `z`) and vector (`b<bits> <code>`) value assignments.
 3. **State Replay**:
    * [`PipelineTracker`](backend/app/trackers/pipeline_tracker.py): Inspects signal candidates (`pc_current`, `instruction`, `if_pc`, `if_instruction`, `alu_result`) to construct per-stage execution dictionaries (`IF`, `ID`, `EX`, `MEM`, `WB`).
@@ -261,29 +298,77 @@ Waveform traces are parsed from standard VCD format into structured microarchite
    * [`HazardAnalyzer`](backend/app/analyzers/hazard_analyzer.py): Detects sequential Read-After-Write (RAW) data dependencies between producer `rd` and consumer `rs1`/`rs2`.
    * [`MetricsEngine`](backend/app/analyzers/metrics_engine.py): Samples clock transitions (`clk == 1`), counting elapsed cycles, instructions retired, stall cycles, flushes, CPI, and IPC.
 
+### Real Captured Session Snapshot (API Response)
+
+The following JSON represents actual data emitted by `manager.snapshot()` during execution:
+
 ```json
 {
-  "session_id": "664dae8d2e6e",
-  "status": "finished",
-  "playback": { "cursor": 4, "total": 24, "paused": true, "mode": "idle" },
+  "session_id": "a7b58b880215",
+  "status": "running",
+  "top": "pipeline_cpu_complete",
+  "testbench": "pipeline_cpu_complete_tb",
+  "playback": {
+    "cursor": 1,
+    "total": 45,
+    "paused": false,
+    "mode": "playing"
+  },
   "pipeline": {
-    "IF": { "pc": "0x10", "instruction": "0x00000013" },
-    "ID": { "pc": "0xC", "instruction": "0x40118233" },
-    "EX": { "pc": "0x8", "instruction": "0x002081B3", "alu_result": "0x1E" }
+    "IF": {
+      "pc": "0x0",
+      "instruction": "0x13"
+    },
+    "ID": {
+      "pc": "0x0",
+      "instruction": "0x13"
+    }
   },
   "registers": [
     { "index": 0, "name": "x0", "abi": "zero", "value": "0x00000000" },
-    { "index": 1, "name": "x1", "abi": "ra", "value": "0x0000000A" },
-    { "index": 2, "name": "x2", "abi": "sp", "value": "0x00000014" },
-    { "index": 3, "name": "x3", "abi": "gp", "value": "0x0000001E" }
+    { "index": 1, "name": "x1", "abi": "ra", "value": "0x00000000" },
+    { "index": 2, "name": "x2", "abi": "sp", "value": "0x00000000" },
+    { "index": 3, "name": "x3", "abi": "gp", "value": "0x00000000" }
+  ],
+  "hazards": [
+    {
+      "kind": "RAW",
+      "resolved": "forwarded",
+      "producer_pc": "0x00000008",
+      "consumer_pc": "0x0000000C",
+      "producer_rd": 2
+    },
+    {
+      "kind": "RAW",
+      "resolved": "forwarded",
+      "producer_pc": "0x0000000C",
+      "consumer_pc": "0x00000010",
+      "producer_rd": 3
+    }
+  ],
+  "forwarding": [
+    {
+      "path": "EX/MEM -> EX",
+      "reason": "RAW",
+      "consumer_pc": "0x0000000C",
+      "producer_pc": "0x00000008"
+    },
+    {
+      "path": "EX/MEM -> EX",
+      "reason": "RAW",
+      "consumer_pc": "0x00000010",
+      "producer_pc": "0x0000000C"
+    }
   ],
   "metrics": {
     "cycles": 20,
-    "retired": 4,
+    "retired": 20,
     "stalls": 0,
-    "hazards": 3,
-    "cpi": 5.0,
-    "ipc": 0.2
+    "hazards": 2,
+    "forwards": 2,
+    "flushes": 0,
+    "ipc": 1.0,
+    "cpi": 1.0
   }
 }
 ```
@@ -357,7 +442,7 @@ The frontend is an engineering workbench built with React 19, TypeScript, Vite, 
 The backend test suite verifies discovery, compilation, simulation execution, VCD parsing, and tracker state reconstruction:
 
 ```bash
-# Executed in backend/ with Python 3.13 venv
+# Executed in backend/ with Python virtual environment active
 pytest tests/ -v
 ```
 
@@ -396,26 +481,6 @@ The repository contains 22 SystemVerilog testbenches in [`verification/tb/`](ver
 
 ---
 
-## Performance Analysis
-
-Performance metrics are computed dynamically from simulation VCD traces by [`MetricsEngine`](backend/app/analyzers/metrics_engine.py):
-
-$$\text{CPI} = \frac{\text{Clock Cycles}}{\text{Retired Instructions}} \qquad \text{IPC} = \frac{\text{Retired Instructions}}{\text{Clock Cycles}}$$
-
-### Sample Simulation Run
-
-Executing [`pipeline_cpu_complete_tb.sv`](verification/tb/pipeline_cpu_complete_tb.sv) against [`pipeline_cpu_complete.sv`](rtl/cpu/pipeline_cpu_complete.sv) produces the following metrics:
-
-* **Simulation Timescale**: 1ns / 1ps; clock half-period = 5ns (nominal 100 MHz clock).
-* **Program Workload**: 4 active instructions (`ADDI x1, x0, 10`, `ADDI x2, x0, 20`, `ADD x3, x1, x2`, `SUB x4, x3, x1`) followed by NOPs.
-* **Cycles Sampled**: 20 clock cycles.
-* **Retired Instructions**: 4 instructions.
-* **Observed CPI**: 5.0 (unpipelined writeback benchmark profile).
-* **Observed IPC**: 0.2.
-* **Physical Synthesis Metrics (fMax, Area, Power)**: ⛔ Not available. The repository does not include ASIC/FPGA synthesis scripts (e.g. Yosys or Vivado synthesis runs).
-
----
-
 ## Quickstart and Reproducibility
 
 ### Prerequisites
@@ -433,10 +498,14 @@ Executing [`pipeline_cpu_complete_tb.sv`](verification/tb/pipeline_cpu_complete_
 # Navigate to backend directory
 cd backend
 
-# Create virtual environment & activate
+# Create virtual environment
 python -m venv .venv
-# On Linux/macOS: source .venv/bin/activate
-# On Windows: .venv\Scripts\activate
+
+# Activate virtual environment
+# On Windows (PowerShell):
+.\.venv\Scripts\Activate.ps1
+# On Linux / macOS:
+# source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -553,6 +622,7 @@ QuantumRISC/
 3. **In-Memory Trace Replay**: [`VCDParser`](backend/app/sim/vcd_parser.py) reads full VCD files into memory using `path.read_text()`. Extremely long simulations (> 100,000 cycles) will increase memory consumption.
 4. **Memory Size & Alignment**: Instruction and data memories are fixed at 256 words (1,024 bytes) and only support word-aligned 32-bit transfers. Byte/halfword access and memory-mapped I/O (MMIO) are not implemented.
 5. **Security Boundaries**: The backend does not sandbox compiled binaries. Malicious Verilog containing `$system()` directives could execute commands with the privileges of the backend process.
+6. **Program Loading Flexibility**: Firmware is initialized directly in the instruction memory Verilog array (`instruction_memory.sv`). Loading new binaries requires rebuilding simulation artifacts or modifying hex memory initialization files.
 
 ---
 
