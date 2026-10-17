@@ -18,12 +18,7 @@ import { abi } from "@/lib/quantum/capture";
 
 const SESSION_KEY = "quantumrisc.session";
 
-export type BackendStatus =
-  | "idle"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "unavailable";
+export type BackendStatus = "idle" | "connecting" | "connected" | "reconnecting" | "unavailable";
 
 export type BackendControls = {
   run: () => Promise<void>;
@@ -66,7 +61,7 @@ function snapshotToCapture(snap: Api.SessionSnapshot): Capture {
   const metrics = snap.metrics;
   const verification = snap.verification;
   const discovery = snap.discovery as Record<string, unknown>;
-  const runResult = snap.run as Record<string, unknown>;
+  const runResult = snap.run as unknown as Record<string, unknown>;
   const playback = snap.playback;
   const memory = snap.memory;
 
@@ -74,21 +69,30 @@ function snapshotToCapture(snap: Api.SessionSnapshot): Capture {
     typeof playback["cursor"] === "number"
       ? (playback["cursor"] as number)
       : typeof metrics["cycles"] === "number"
-      ? (metrics["cycles"] as number)
-      : 0;
+        ? (metrics["cycles"] as number)
+        : 0;
 
-  const pipelineRecord: Record<string, { pc: string; instruction: string; stalled?: boolean; flushed?: boolean } | null> = {};
-  
+  const pipelineRecord: Record<
+    string,
+    { pc: string; instruction: string; stalled?: boolean; flushed?: boolean } | null
+  > = {};
+
   // Backend now returns real stage mapping natively if the RTL exposes it.
   for (const stage of ["IF", "ID", "EX", "MEM", "WB"] as const) {
     const s = pipeline[stage];
     if (s && typeof s === "object") {
       const st = s as Record<string, unknown>;
       pipelineRecord[stage] = {
-        pc: typeof st["pc"] === "number"
-          ? `0x${(st["pc"] as number).toString(16).padStart(8, "0")}`
-          : String(st["pc"] ?? "0x00000000"),
-        instruction: typeof st["instruction"] === "string" ? (st["instruction"] as string) : typeof st["opcode"] === "string" ? (st["opcode"] as string) : "bubble",
+        pc:
+          typeof st["pc"] === "number"
+            ? `0x${(st["pc"] as number).toString(16).padStart(8, "0")}`
+            : String(st["pc"] ?? "0x00000000"),
+        instruction:
+          typeof st["instruction"] === "string"
+            ? (st["instruction"] as string)
+            : typeof st["opcode"] === "string"
+              ? (st["opcode"] as string)
+              : "bubble",
         stalled: getBool(st, "stalled"),
         flushed: getBool(st, "flushed"),
       };
@@ -99,7 +103,7 @@ function snapshotToCapture(snap: Api.SessionSnapshot): Capture {
 
   const registerRecord: Record<string, string> = {};
   for (const r of regs) {
-    const idx = getNum(r, "index");
+    const idx = r.index;
     if (idx >= 0 && idx < 32) {
       const name = `x${idx}`;
       const val = r["value"];
@@ -119,18 +123,20 @@ function snapshotToCapture(snap: Api.SessionSnapshot): Capture {
     if (typeof val === "string") {
       memRecord[`0x${addr.toString(16).padStart(8, "0")}`] = val;
     } else if (typeof val === "number") {
-      memRecord[`0x${addr.toString(16).padStart(8, "0")}`] = `0x${(val >>> 0).toString(16).padStart(8, "0")}`;
+      memRecord[`0x${addr.toString(16).padStart(8, "0")}`] =
+        `0x${(val >>> 0).toString(16).padStart(8, "0")}`;
     }
   }
 
   const verResults: Capture["verification"] = [];
   const verFiles = getArr(discovery, "verification_files");
   for (const f of verFiles) {
-    const modNames = getArr(f, "module_names").map(m => String(m["name"] ?? m));
+    const modNames = getArr(f, "module_names").map((m) => String(m["name"] ?? m));
     verResults.push({
-      name: getStr(f, "path").split('/').pop() || "tb",
-      status: runResult["ok"] === true ? "passed" : runResult["ok"] === false ? "failed" : "unavailable",
-      description: `Testbench module: ${modNames.join(', ')}`,
+      name: getStr(f, "path").split("/").pop() || "tb",
+      status:
+        runResult["ok"] === true ? "passed" : runResult["ok"] === false ? "failed" : "unavailable",
+      description: `Testbench module: ${modNames.join(", ")}`,
     });
   }
 
@@ -173,13 +179,15 @@ function snapshotToCapture(snap: Api.SessionSnapshot): Capture {
   };
 }
 
-function snapshotToWaveData(snap: Api.SessionSnapshot): import("@/lib/quantum/capture").WaveData | null {
+function snapshotToWaveData(
+  snap: Api.SessionSnapshot,
+): import("@/lib/quantum/capture").WaveData | null {
   const waveforms = snap.waveforms as Record<string, unknown>;
   const wfTimeline = waveforms["timeline"];
   if (!waveforms || !Array.isArray(wfTimeline) || wfTimeline.length === 0) return null;
 
   const wfSignals = getArr(waveforms, "signals");
-  const waveSignals: import("@/lib/quantum/capture").WaveSignal[] = wfSignals.map(s => ({
+  const waveSignals: import("@/lib/quantum/capture").WaveSignal[] = wfSignals.map((s) => ({
     name: getStr(s, "full_name") || getStr(s, "name") || "unknown",
     width: getNum(s, "size") || 1,
     transitions: [],
@@ -192,7 +200,7 @@ function snapshotToWaveData(snap: Api.SessionSnapshot): import("@/lib/quantum/ca
     const changed = sample["changed"];
     if (changed && typeof changed === "object") {
       for (const sig of waveSignals) {
-        const val = (changed as any)[sig.name];
+        const val = (changed as Record<string, unknown>)[sig.name];
         if (val !== undefined) {
           sig.transitions.push({ time, value: String(val) });
         }
@@ -201,7 +209,7 @@ function snapshotToWaveData(snap: Api.SessionSnapshot): import("@/lib/quantum/ca
   }
 
   // Filter out signals with no transitions for cleaner UI, unless there are very few
-  const activeSignals = waveSignals.filter(s => s.transitions.length > 0);
+  const activeSignals = waveSignals.filter((s) => s.transitions.length > 0);
   return {
     signals: activeSignals.length > 0 ? activeSignals : waveSignals,
     timescale: "1ns", // Backend default
@@ -229,34 +237,44 @@ export function useBackend(): BackendState {
       if (newWaveBase) setWave(newWaveBase);
       setCapture((prev) => {
         let prevCapture = prev;
-        
+
         // Recover from session storage if prev is null
         if (!prevCapture && sessionRef.current) {
           const cached = sessionStorage.getItem(`quantum-capture-${sessionRef.current}`);
           if (cached) {
             try {
               prevCapture = JSON.parse(cached) as Capture;
-            } catch (e) { /* ignore */ }
+            } catch (e) {
+              /* ignore */
+            }
           }
         }
-        
+
         if (!prevCapture) {
-          if (sessionRef.current) sessionStorage.setItem(`quantum-capture-${sessionRef.current}`, JSON.stringify(newCaptureBase));
+          if (sessionRef.current)
+            sessionStorage.setItem(
+              `quantum-capture-${sessionRef.current}`,
+              JSON.stringify(newCaptureBase),
+            );
           return newCaptureBase;
         }
-        
+
         const newCycle = newCaptureBase.cycles[0];
         if (!newCycle) return prevCapture;
-        
+
         // Accumulate cycles over time to allow timeline navigation
         let updatedCycles = [...prevCapture.cycles];
-        
+
         // If the backend cursor was reset to 0, and we receive a cycle 0 that doesn't match our history length,
         // it might be a simulation reset. If it's a reset, we should clear the timeline.
-        if (newCycle.cycle === 0 && prevCapture.cycles.length > 1 && (snap.playback as Record<string, unknown>)?.["mode"] === "idle") {
-           updatedCycles = [newCycle];
+        if (
+          newCycle.cycle === 0 &&
+          prevCapture.cycles.length > 1 &&
+          (snap.playback as Record<string, unknown>)?.["mode"] === "idle"
+        ) {
+          updatedCycles = [newCycle];
         } else {
-          const existingIdx = updatedCycles.findIndex(c => c.cycle === newCycle.cycle);
+          const existingIdx = updatedCycles.findIndex((c) => c.cycle === newCycle.cycle);
           if (existingIdx >= 0) {
             updatedCycles[existingIdx] = newCycle; // Update existing cycle state
           } else {
@@ -264,14 +282,18 @@ export function useBackend(): BackendState {
             updatedCycles.sort((a, b) => a.cycle - b.cycle);
           }
         }
-        
+
         const updatedCapture = {
           ...prevCapture,
           ...newCaptureBase,
           cycles: updatedCycles,
         };
-        
-        if (sessionRef.current) sessionStorage.setItem(`quantum-capture-${sessionRef.current}`, JSON.stringify(updatedCapture));
+
+        if (sessionRef.current)
+          sessionStorage.setItem(
+            `quantum-capture-${sessionRef.current}`,
+            JSON.stringify(updatedCapture),
+          );
         return updatedCapture;
       });
     } catch (e) {
@@ -279,22 +301,25 @@ export function useBackend(): BackendState {
     }
   }, []);
 
-  const connectWs = useCallback((sid: string) => {
-    wsRef.current?.disconnect();
-    sessionRef.current = sid;
-    const client = new WsClient(sid, {
-      onSnapshot: applySnapshot,
-      onStateChange: (s, d) => {
-        if (s === "connected") setStatus("connected");
-        else if (s === "reconnecting") setStatus("reconnecting");
-        else if (s === "unavailable") setStatus("unavailable");
-        else setStatus("connecting");
-        setDetail(d ?? s);
-      },
-    });
-    wsRef.current = client;
-    client.connect();
-  }, [applySnapshot]);
+  const connectWs = useCallback(
+    (sid: string) => {
+      wsRef.current?.disconnect();
+      sessionRef.current = sid;
+      const client = new WsClient(sid, {
+        onSnapshot: applySnapshot,
+        onStateChange: (s, d) => {
+          if (s === "connected") setStatus("connected");
+          else if (s === "reconnecting") setStatus("reconnecting");
+          else if (s === "unavailable") setStatus("unavailable");
+          else setStatus("connecting");
+          setDetail(d ?? s);
+        },
+      });
+      wsRef.current = client;
+      client.connect();
+    },
+    [applySnapshot],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -325,13 +350,17 @@ export function useBackend(): BackendState {
           if (!cancelled) {
             setSessionId(stored);
             sessionRef.current = stored;
-            
+
             // Try to load cached capture
             const cached = sessionStorage.getItem(`quantum-capture-${stored}`);
             if (cached) {
-              try { setCapture(JSON.parse(cached)); } catch (e) {}
+              try {
+                setCapture(JSON.parse(cached));
+              } catch {
+                // Ignore corrupted cache
+              }
             }
-            
+
             setDetail("Restored session");
             applySnapshot(snap);
             connectWs(stored);

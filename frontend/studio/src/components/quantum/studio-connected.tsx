@@ -50,15 +50,13 @@ export function StudioWithBackend() {
     window.dispatchEvent(
       new CustomEvent("quantumrisc:backend-status", {
         detail: { status, detail, sessionId },
-      })
+      }),
     );
   }, [status, detail, sessionId]);
 
   // Push backend controls into Studio topbar via event bus
   useEffect(() => {
-    window.dispatchEvent(
-      new CustomEvent("quantumrisc:backend-controls", { detail: controls })
-    );
+    window.dispatchEvent(new CustomEvent("quantumrisc:backend-controls", { detail: controls }));
   }, [controls]);
 
   // Render Studio directly — it owns the full chrome in the new UI design

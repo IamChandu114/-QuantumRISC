@@ -1,37 +1,596 @@
-import { useMemo, useState } from 'react';
-import { Activity, ArrowDown, ArrowRight, ChevronRight, CircuitBoard, FileCode2, Filter, GitBranch, Layers, Search, ShieldCheck, Waves } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { abi, formatHex, stages, type Capture, type Cycle, type SelectedObject, type WaveData } from '@/lib/quantum/capture';
+import { useMemo, useState } from "react";
+import {
+  Activity,
+  ArrowDown,
+  ArrowRight,
+  ChevronRight,
+  CircuitBoard,
+  FileCode2,
+  Filter,
+  GitBranch,
+  Layers,
+  Search,
+  ShieldCheck,
+  Waves,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  abi,
+  formatHex,
+  stages,
+  type Capture,
+  type Cycle,
+  type SelectedObject,
+  type WaveData,
+} from "@/lib/quantum/capture";
 
-export function Empty({ icon: Icon = Activity, title, detail, action }: { icon?: typeof Activity; title: string; detail: string; action?: React.ReactNode }) {
-  return <div className="empty-state"><div className="empty-glyph"><Icon size={22}/></div><h3>{title}</h3><p>{detail}</p>{action}</div>;
+export function Empty({
+  icon: Icon = Activity,
+  title,
+  detail,
+  action,
+}: {
+  icon?: typeof Activity;
+  title: string;
+  detail: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="empty-state">
+      <div className="empty-glyph">
+        <Icon size={22} />
+      </div>
+      <h3>{title}</h3>
+      <p>{detail}</p>
+      {action}
+    </div>
+  );
 }
-export function Pipeline({ cycle, select }: { cycle?: Cycle | undefined; select: (object: SelectedObject) => void }) {
-  return <div className="pipeline-content"><div className="pipeline-legend"><span><i className="dot mint"/> Instruction flow</span><span><i className="dot amber"/> Stall / hazard</span><span><i className="dot subtle"/> No captured state</span></div><div className="pipeline-flow">{stages.map((stage,i) => { const value = cycle?.pipeline?.[stage]; return <div className="stage-wrap" key={stage}><div className="stage-label"><span>{stage}</span><small>{['FETCH','DECODE','EXECUTE','MEMORY','WRITEBACK'][i]}</small></div><Button variant="stage" className={value?.stalled ? 'stage-stalled' : ''} onClick={() => value && select({ kind:'instruction', name:value.instruction, pc:value.pc })} disabled={!value}><span className="stage-port"/><span className="mono stage-pc">{value?.pc ?? '—'}</span><strong className="mono">{value?.instruction ?? 'Unavailable'}</strong><span className="stage-note">{value?.stalled ? 'Stalled' : value?.flushed ? 'Flushed' : value ? 'Active instruction' : 'No execution capture'}</span><span className="stage-port right"/></Button>{i<4 && <ArrowRight className="flow-arrow" size={17}/>}</div>; })}</div><div className="pipeline-return"><GitBranch size={14}/><span>{cycle?.events?.find(e => e.type.toLowerCase().includes('forward'))?.description ?? 'Forwarding paths appear when captured'}</span></div><div className="flow-ruler"><span>Instruction entry</span><span>5-stage execution path</span><span>Architectural commit <ArrowRight size={12}/></span></div></div>;
+export function Pipeline({
+  cycle,
+  select,
+}: {
+  cycle?: Cycle | undefined;
+  select: (object: SelectedObject) => void;
+}) {
+  return (
+    <div className="pipeline-content">
+      <div className="pipeline-legend">
+        <span>
+          <i className="dot mint" /> Instruction flow
+        </span>
+        <span>
+          <i className="dot amber" /> Stall / hazard
+        </span>
+        <span>
+          <i className="dot subtle" /> No captured state
+        </span>
+      </div>
+      <div className="pipeline-flow">
+        {stages.map((stage, i) => {
+          const value = cycle?.pipeline?.[stage];
+          return (
+            <div className="stage-wrap" key={stage}>
+              <div className="stage-label">
+                <span>{stage}</span>
+                <small>{["FETCH", "DECODE", "EXECUTE", "MEMORY", "WRITEBACK"][i]}</small>
+              </div>
+              <Button
+                variant="stage"
+                className={value?.stalled ? "stage-stalled" : ""}
+                onClick={() =>
+                  value && select({ kind: "instruction", name: value.instruction, pc: value.pc })
+                }
+                disabled={!value}
+              >
+                <span className="stage-port" />
+                <span className="mono stage-pc">{value?.pc ?? "—"}</span>
+                <strong className="mono">{value?.instruction ?? "Unavailable"}</strong>
+                <span className="stage-note">
+                  {value?.stalled
+                    ? "Stalled"
+                    : value?.flushed
+                      ? "Flushed"
+                      : value
+                        ? "Active instruction"
+                        : "No execution capture"}
+                </span>
+                <span className="stage-port right" />
+              </Button>
+              {i < 4 && <ArrowRight className="flow-arrow" size={17} />}
+            </div>
+          );
+        })}
+      </div>
+      <div className="pipeline-return">
+        <GitBranch size={14} />
+        <span>
+          {cycle?.events?.find((e) => e.type.toLowerCase().includes("forward"))?.description ??
+            "Forwarding paths appear when captured"}
+        </span>
+      </div>
+      <div className="flow-ruler">
+        <span>Instruction entry</span>
+        <span>5-stage execution path</span>
+        <span>
+          Architectural commit <ArrowRight size={12} />
+        </span>
+      </div>
+    </div>
+  );
 }
-export function Registers({ cycle, previous, select }: { cycle?: Cycle | undefined; previous?: Cycle | undefined; select: (object: SelectedObject) => void }) {
-  const [filter,setFilter] = useState(''); const [changed,setChanged] = useState(false);
-  const regs = Array.from({length:32},(_,i) => ({ name:`x${i}`, abi:abi[i], value:cycle?.registers?.[`x${i}`], old:previous?.registers?.[`x${i}`] })).filter(r => (!changed || (r.value !== undefined && r.old !== undefined && r.value !== r.old)) && `${r.name} ${r.abi}`.includes(filter.toLowerCase()));
-  return <><div className="panel-tools"><label className="inline-search"><Search size={13}/><input aria-label="Search registers" placeholder="Find register…" value={filter} onChange={e=>setFilter(e.target.value)}/></label><Button variant="ghost" size="compact" aria-pressed={changed} className={changed?'active-tool':''} onClick={()=>setChanged(!changed)}><Filter size={12}/> Changed only</Button></div><div className="register-header"><span>REGISTER</span><span>VALUE · HEX</span><span>REGISTER</span><span>VALUE · HEX</span></div><div className="register-grid">{regs.map(r => <Button key={r.name} variant="data" className={r.value!==undefined && r.old!==undefined && r.value!==r.old?'modified-register':''} onClick={()=>select({kind:'register',name:r.name,value:r.value===undefined?undefined:String(r.value)})}><span className="register-name mono">{r.name}<small>{r.abi}</small></span><span className="mono register-value">{formatHex(r.value)}</span></Button>)}</div><div className="panel-foot"><i className="dot mint"/><span>{cycle?.registers ? `${Object.keys(cycle.registers).length} captured registers` : 'Register values unavailable'}</span><span className="push-right mono">RV32 / RV64</span></div></>;
+export function Registers({
+  cycle,
+  previous,
+  select,
+}: {
+  cycle?: Cycle | undefined;
+  previous?: Cycle | undefined;
+  select: (object: SelectedObject) => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const [changed, setChanged] = useState(false);
+  const regs = Array.from({ length: 32 }, (_, i) => ({
+    name: `x${i}`,
+    abi: abi[i],
+    value: cycle?.registers?.[`x${i}`],
+    old: previous?.registers?.[`x${i}`],
+  })).filter(
+    (r) =>
+      (!changed || (r.value !== undefined && r.old !== undefined && r.value !== r.old)) &&
+      `${r.name} ${r.abi}`.includes(filter.toLowerCase()),
+  );
+  return (
+    <>
+      <div className="panel-tools">
+        <label className="inline-search">
+          <Search size={13} />
+          <input
+            aria-label="Search registers"
+            placeholder="Find register…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </label>
+        <Button
+          variant="ghost"
+          size="compact"
+          aria-pressed={changed}
+          className={changed ? "active-tool" : ""}
+          onClick={() => setChanged(!changed)}
+        >
+          <Filter size={12} /> Changed only
+        </Button>
+      </div>
+      <div className="register-header">
+        <span>REGISTER</span>
+        <span>VALUE · HEX</span>
+        <span>REGISTER</span>
+        <span>VALUE · HEX</span>
+      </div>
+      <div className="register-grid">
+        {regs.map((r) => (
+          <Button
+            key={r.name}
+            variant="data"
+            className={
+              r.value !== undefined && r.old !== undefined && r.value !== r.old
+                ? "modified-register"
+                : ""
+            }
+            onClick={() =>
+              select({
+                kind: "register",
+                name: r.name,
+                value: r.value === undefined ? undefined : String(r.value),
+              })
+            }
+          >
+            <span className="register-name mono">
+              {r.name}
+              <small>{r.abi}</small>
+            </span>
+            <span className="mono register-value">{formatHex(r.value)}</span>
+          </Button>
+        ))}
+      </div>
+      <div className="panel-foot">
+        <i className="dot mint" />
+        <span>
+          {cycle?.registers
+            ? `${Object.keys(cycle.registers).length} captured registers`
+            : "Register values unavailable"}
+        </span>
+        <span className="push-right mono">RV32 / RV64</span>
+      </div>
+    </>
+  );
 }
-export function Memory({ cycle, select }: { cycle?: Cycle | undefined; select: (object: SelectedObject) => void }) {
-  const [query,setQuery] = useState(''); const entries = Object.entries(cycle?.memory ?? {}).filter(([address])=>address.toLowerCase().includes(query.toLowerCase())).slice(0,256);
-  return <><div className="panel-tools"><label className="inline-search"><Search size={13}/><input placeholder="Go to address…" aria-label="Memory address" value={query} onChange={e=>setQuery(e.target.value)}/></label><span className="mono text-muted-foreground">Captured words</span></div><div className="memory-heading mono"><span>ADDRESS</span><span>VALUE</span><span>ASCII</span></div>{entries.length? <div className="memory-rows">{entries.map(([address,value])=><Button variant="data" key={address} onClick={()=>select({kind:'memory',name:address,value:String(value)})}><span>{address}</span><span>{formatHex(value)}</span><span>{(()=>{try{return Array.from({length:4},(_,i)=>{const b=Number((BigInt(value)>>BigInt(i*8))&255n);return b>=32&&b<127?String.fromCharCode(b):'·';}).join('');}catch{return '—';}})()}</span></Button>)}</div>:<Empty icon={Layers} title="No memory state" detail="Import an execution capture containing memory addresses and values."/>}</>;
+export function Memory({
+  cycle,
+  select,
+}: {
+  cycle?: Cycle | undefined;
+  select: (object: SelectedObject) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const entries = Object.entries(cycle?.memory ?? {})
+    .filter(([address]) => address.toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 256);
+  return (
+    <>
+      <div className="panel-tools">
+        <label className="inline-search">
+          <Search size={13} />
+          <input
+            placeholder="Go to address…"
+            aria-label="Memory address"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+        <span className="mono text-muted-foreground">Captured words</span>
+      </div>
+      <div className="memory-heading mono">
+        <span>ADDRESS</span>
+        <span>VALUE</span>
+        <span>ASCII</span>
+      </div>
+      {entries.length ? (
+        <div className="memory-rows">
+          {entries.map(([address, value]) => (
+            <Button
+              variant="data"
+              key={address}
+              onClick={() => select({ kind: "memory", name: address, value: String(value) })}
+            >
+              <span>{address}</span>
+              <span>{formatHex(value)}</span>
+              <span>
+                {(() => {
+                  try {
+                    return Array.from({ length: 4 }, (_, i) => {
+                      const b = Number((BigInt(value) >> BigInt(i * 8)) & 255n);
+                      return b >= 32 && b < 127 ? String.fromCharCode(b) : "·";
+                    }).join("");
+                  } catch {
+                    return "—";
+                  }
+                })()}
+              </span>
+            </Button>
+          ))}
+        </div>
+      ) : (
+        <Empty
+          icon={Layers}
+          title="No memory state"
+          detail="Import an execution capture containing memory addresses and values."
+        />
+      )}
+    </>
+  );
 }
-export function Timeline({ capture, index, setIndex, select }: { capture: Capture | null; index: number; setIndex: (i:number)=>void; select:(object:SelectedObject)=>void }) {
-  const [layer,setLayer] = useState('Pipeline'); const visible = capture?.cycles.slice(Math.max(0,index-7),Math.max(0,index-7)+18) ?? [];
-  return <><div className="trace-layers">{['Pipeline','Hazards','Registers','Memory','Branches','Verification'].map(l=><Button key={l} variant="tab" size="compact" className={layer===l?'selected':''} onClick={()=>setLayer(l)}>{l}</Button>)}<span className="push-right mono">{capture?`${capture.cycles.length} captured cycles`:'No recorded cycles'}</span></div><div className="trace-scroll"><div className="trace-table"><div className="trace-line"><span className="trace-name">CYCLE</span>{visible.length?visible.map(c=><Button key={c.cycle} variant="trace" className={c.cycle===capture?.cycles[index]?.cycle?'current':''} onClick={()=>setIndex(capture?.cycles.findIndex(v=>v.cycle===c.cycle)??0)}>{c.cycle}</Button>):Array.from({length:18},(_,i)=><span className="trace-placeholder mono" key={i}>—</span>)}</div>{(layer==='Pipeline'?stages:[layer]).map(stage=><div className="trace-line" key={stage}><span className="trace-name"><i className={`stage-dot stage-${stage.toLowerCase()}`}/>{stage}</span>{visible.length?visible.map(c=>{const p=layer==='Pipeline'?c.pipeline?.[stage as typeof stages[number]]:undefined; const event=c.events?.find(e=>e.type.toLowerCase().includes(layer.toLowerCase().replace(/s$/,''))); const text=p?.instruction ?? (layer==='Registers'?`${Object.keys(c.registers??{}).length}`:event?.type ?? '—'); return <Button key={c.cycle} variant="trace" className={`${c.cycle===capture?.cycles[index]?.cycle?'cursor-cell':''} ${p?'occupied':''} ${p?.stalled?'stalled':''}`} onClick={()=>{setIndex(capture?.cycles.findIndex(v=>v.cycle===c.cycle)??0); if(p)select({kind:'instruction',name:p.instruction,pc:p.pc});}} title={p?.instruction??event?.description}>{text}</Button>}):Array.from({length:18},(_,i)=><span className="trace-empty" key={i}/>)}</div>)}</div></div><div className="panel-foot"><span>Execution trace</span><span className="push-right">{capture?'Select a captured cycle':'Unavailable · import a capture to investigate'}</span></div></>;
+export function Timeline({
+  capture,
+  index,
+  setIndex,
+  select,
+}: {
+  capture: Capture | null;
+  index: number;
+  setIndex: (i: number) => void;
+  select: (object: SelectedObject) => void;
+}) {
+  const [layer, setLayer] = useState("Pipeline");
+  const visible = capture?.cycles.slice(Math.max(0, index - 7), Math.max(0, index - 7) + 18) ?? [];
+  return (
+    <>
+      <div className="trace-layers">
+        {["Pipeline", "Hazards", "Registers", "Memory", "Branches", "Verification"].map((l) => (
+          <Button
+            key={l}
+            variant="tab"
+            size="compact"
+            className={layer === l ? "selected" : ""}
+            onClick={() => setLayer(l)}
+          >
+            {l}
+          </Button>
+        ))}
+        <span className="push-right mono">
+          {capture ? `${capture.cycles.length} captured cycles` : "No recorded cycles"}
+        </span>
+      </div>
+      <div className="trace-scroll">
+        <div className="trace-table">
+          <div className="trace-line">
+            <span className="trace-name">CYCLE</span>
+            {visible.length
+              ? visible.map((c) => (
+                  <Button
+                    key={c.cycle}
+                    variant="trace"
+                    className={c.cycle === capture?.cycles[index]?.cycle ? "current" : ""}
+                    onClick={() =>
+                      setIndex(capture?.cycles.findIndex((v) => v.cycle === c.cycle) ?? 0)
+                    }
+                  >
+                    {c.cycle}
+                  </Button>
+                ))
+              : Array.from({ length: 18 }, (_, i) => (
+                  <span className="trace-placeholder mono" key={i}>
+                    —
+                  </span>
+                ))}
+          </div>
+          {(layer === "Pipeline" ? stages : [layer]).map((stage) => (
+            <div className="trace-line" key={stage}>
+              <span className="trace-name">
+                <i className={`stage-dot stage-${stage.toLowerCase()}`} />
+                {stage}
+              </span>
+              {visible.length
+                ? visible.map((c) => {
+                    const p =
+                      layer === "Pipeline"
+                        ? c.pipeline?.[stage as (typeof stages)[number]]
+                        : undefined;
+                    const event = c.events?.find((e) =>
+                      e.type.toLowerCase().includes(layer.toLowerCase().replace(/s$/, "")),
+                    );
+                    const text =
+                      p?.instruction ??
+                      (layer === "Registers"
+                        ? `${Object.keys(c.registers ?? {}).length}`
+                        : (event?.type ?? "—"));
+                    return (
+                      <Button
+                        key={c.cycle}
+                        variant="trace"
+                        className={`${c.cycle === capture?.cycles[index]?.cycle ? "cursor-cell" : ""} ${p ? "occupied" : ""} ${p?.stalled ? "stalled" : ""}`}
+                        onClick={() => {
+                          setIndex(capture?.cycles.findIndex((v) => v.cycle === c.cycle) ?? 0);
+                          if (p) select({ kind: "instruction", name: p.instruction, pc: p.pc });
+                        }}
+                        title={p?.instruction ?? event?.description}
+                      >
+                        {text}
+                      </Button>
+                    );
+                  })
+                : Array.from({ length: 18 }, (_, i) => <span className="trace-empty" key={i} />)}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="panel-foot">
+        <span>Execution trace</span>
+        <span className="push-right">
+          {capture ? "Select a captured cycle" : "Unavailable · import a capture to investigate"}
+        </span>
+      </div>
+    </>
+  );
 }
-export function Waveform({ wave, selected, setSelected, time, setTime }: { wave: WaveData | null; selected: string; setSelected:(s:string)=>void; time:number; setTime:(n:number)=>void }) {
-  const [filter,setFilter] = useState(''); const [zoom,setZoom] = useState(1);
-  const signals = useMemo(()=>wave?.signals.filter(s=>s.name.toLowerCase().includes(filter.toLowerCase())).slice(0,80)??[],[wave,filter]);
-  if(!wave)return <Empty icon={Waves} title="No waveform loaded" detail="Import a VCD generated by your simulator. Signal transitions remain separate from cycles until a clock mapping exists."/>;
-  const end=Math.max(1,wave.maxTime/zoom);
-  return <><div className="panel-tools"><label className="inline-search"><Search size={13}/><input aria-label="Find signal" value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Find signal…"/></label><label className="compact-label">Zoom <select value={zoom} onChange={e=>setZoom(Number(e.target.value))}>{[1,2,4,8].map(z=><option key={z}>{z}</option>)}</select></label><span className="mono">{time} · {wave.timescale}</span></div><input className="wave-cursor-input" aria-label="Waveform cursor" type="range" min="0" max={wave.maxTime} value={time} onChange={e=>setTime(Number(e.target.value))}/><div className="wave-signals">{signals.map(signal=>{const value=signal.transitions.filter(t=>t.time<=time).at(-1)?.value??'x'; const transitions=signal.transitions.filter(t=>t.time<=end).slice(0,3000);let path='';transitions.forEach((t,i)=>{const x=t.time/end*700;const y=t.value==='0'?30:10;const next=transitions[i+1]?.time??end;path+=`${i?'L':'M'}${x},${y} L${Math.min(next/end*700,700)},${y} `;}); return <div key={signal.name} className={`wave-row ${selected===signal.name?'selected':''}`}><Button variant="data" onClick={()=>setSelected(signal.name)}><ChevronRight size={12}/><span className="mono">{signal.name}</span><small className="mono">{value}</small></Button><svg viewBox="0 0 700 40" preserveAspectRatio="none" role="img" aria-label={`${signal.name} transitions`} onClick={e=>{const bounds=e.currentTarget.getBoundingClientRect();setTime(Math.round((e.clientX-bounds.left)/bounds.width*end));}}><path d={path} className="wave-path"/><line x1={Math.min(time/end*700,700)} x2={Math.min(time/end*700,700)} y1="0" y2="40" className="wave-cursor"/></svg></div>})}</div><div className="panel-foot">{wave.signals.length} signals · bounded to 80 visible signals<span className="push-right">VCD time; no inferred clock mapping</span></div></>;
+export function Waveform({
+  wave,
+  selected,
+  setSelected,
+  time,
+  setTime,
+}: {
+  wave: WaveData | null;
+  selected: string;
+  setSelected: (s: string) => void;
+  time: number;
+  setTime: (n: number) => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const [zoom, setZoom] = useState(1);
+  const signals = useMemo(
+    () =>
+      wave?.signals
+        .filter((s) => s.name.toLowerCase().includes(filter.toLowerCase()))
+        .slice(0, 80) ?? [],
+    [wave, filter],
+  );
+  if (!wave)
+    return (
+      <Empty
+        icon={Waves}
+        title="No waveform loaded"
+        detail="Import a VCD generated by your simulator. Signal transitions remain separate from cycles until a clock mapping exists."
+      />
+    );
+  const end = Math.max(1, wave.maxTime / zoom);
+  return (
+    <>
+      <div className="panel-tools">
+        <label className="inline-search">
+          <Search size={13} />
+          <input
+            aria-label="Find signal"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Find signal…"
+          />
+        </label>
+        <label className="compact-label">
+          Zoom{" "}
+          <select value={zoom} onChange={(e) => setZoom(Number(e.target.value))}>
+            {[1, 2, 4, 8].map((z) => (
+              <option key={z}>{z}</option>
+            ))}
+          </select>
+        </label>
+        <span className="mono">
+          {time} · {wave.timescale}
+        </span>
+      </div>
+      <input
+        className="wave-cursor-input"
+        aria-label="Waveform cursor"
+        type="range"
+        min="0"
+        max={wave.maxTime}
+        value={time}
+        onChange={(e) => setTime(Number(e.target.value))}
+      />
+      <div className="wave-signals">
+        {signals.map((signal) => {
+          const value = signal.transitions.filter((t) => t.time <= time).at(-1)?.value ?? "x";
+          const transitions = signal.transitions.filter((t) => t.time <= end).slice(0, 3000);
+          let path = "";
+          transitions.forEach((t, i) => {
+            const x = (t.time / end) * 700;
+            const y = t.value === "0" ? 30 : 10;
+            const next = transitions[i + 1]?.time ?? end;
+            path += `${i ? "L" : "M"}${x},${y} L${Math.min((next / end) * 700, 700)},${y} `;
+          });
+          return (
+            <div
+              key={signal.name}
+              className={`wave-row ${selected === signal.name ? "selected" : ""}`}
+            >
+              <Button variant="data" onClick={() => setSelected(signal.name)}>
+                <ChevronRight size={12} />
+                <span className="mono">{signal.name}</span>
+                <small className="mono">{value}</small>
+              </Button>
+              <svg
+                viewBox="0 0 700 40"
+                preserveAspectRatio="none"
+                role="img"
+                aria-label={`${signal.name} transitions`}
+                onClick={(e) => {
+                  const bounds = e.currentTarget.getBoundingClientRect();
+                  setTime(Math.round(((e.clientX - bounds.left) / bounds.width) * end));
+                }}
+              >
+                <path d={path} className="wave-path" />
+                <line
+                  x1={Math.min((time / end) * 700, 700)}
+                  x2={Math.min((time / end) * 700, 700)}
+                  y1="0"
+                  y2="40"
+                  className="wave-cursor"
+                />
+              </svg>
+            </div>
+          );
+        })}
+      </div>
+      <div className="panel-foot">
+        {wave.signals.length} signals · bounded to 80 visible signals
+        <span className="push-right">VCD time; no inferred clock mapping</span>
+      </div>
+    </>
+  );
 }
-export function Hardware({ capture, cycle, mode, select }: { capture: Capture|null; cycle?: Cycle | undefined; mode:string; select:(o:SelectedObject)=>void }) {
-  if(mode==='Cache')return cycle?.cache ? <div className="engineering-table"><div className="table-heading">SET / WAY <span>TAG</span><span>STATE</span></div>{cycle.cache.map((line,i)=><div className="table-row mono" key={i}><span>{line.set} / {line.way}</span><span>{line.tag}</span><span>{line.valid?'Valid':'Invalid'}</span></div>)}</div>:<Empty icon={CircuitBoard} title="Cache telemetry unavailable" detail="The capture does not contain cache sets, ways, tags, or line state."/>;
-  if(mode==='RTL')return capture?.rtl?.length ? <div className="rtl-list">{capture.rtl.map(module=><details key={module.module} open><summary><FileCode2 size={14}/>{module.module}<span className="push-right">{module.file??'Source location unavailable'}</span></summary>{module.signals?.map(s=><Button variant="data" key={s} onClick={()=>select({kind:'signal',name:s})}><ArrowDown size={12}/>{s}</Button>)}{module.source&&<pre>{module.source}</pre>}</details>)}</div>:<Empty icon={FileCode2} title="RTL source unavailable" detail="No module hierarchy or source locations have been supplied. Source links are never inferred."/>;
-  if(mode==='Verification')return capture?.verification?.length ? <div className="verification-list">{capture.verification.map((test,i)=><Button variant="data" key={i} onClick={()=>select({kind:'event',name:test.name,value:test.description})}><ShieldCheck size={16}/><span>{test.name}<small>{test.description}</small></span><span className={`test-state ${test.status}`}>{test.status}</span></Button>)}</div>:<Empty icon={ShieldCheck} title="No verification results" detail="Import test or assertion outcomes from a real execution capture. Compilation and regression require the processor backend."/>;
-  return capture?.performance ? <div className="performance-grid">{Object.entries(capture.performance).map(([name,value])=><div key={name}><span>{name.replaceAll('_',' ')}</span><strong className="mono">{value}</strong><small>Reported by capture</small></div>)}</div>:<Empty icon={Activity} title="Performance telemetry unavailable" detail="No IPC, CPI, stall, or branch measurements are reported in this capture. Metrics will not be estimated."/>;
+export function Hardware({
+  capture,
+  cycle,
+  mode,
+  select,
+}: {
+  capture: Capture | null;
+  cycle?: Cycle | undefined;
+  mode: string;
+  select: (o: SelectedObject) => void;
+}) {
+  if (mode === "Cache")
+    return cycle?.cache ? (
+      <div className="engineering-table">
+        <div className="table-heading">
+          SET / WAY <span>TAG</span>
+          <span>STATE</span>
+        </div>
+        {cycle.cache.map((line, i) => (
+          <div className="table-row mono" key={i}>
+            <span>
+              {line.set} / {line.way}
+            </span>
+            <span>{line.tag}</span>
+            <span>{line.valid ? "Valid" : "Invalid"}</span>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <Empty
+        icon={CircuitBoard}
+        title="Cache telemetry unavailable"
+        detail="The capture does not contain cache sets, ways, tags, or line state."
+      />
+    );
+  if (mode === "RTL")
+    return capture?.rtl?.length ? (
+      <div className="rtl-list">
+        {capture.rtl.map((module) => (
+          <details key={module.module} open>
+            <summary>
+              <FileCode2 size={14} />
+              {module.module}
+              <span className="push-right">{module.file ?? "Source location unavailable"}</span>
+            </summary>
+            {module.signals?.map((s) => (
+              <Button variant="data" key={s} onClick={() => select({ kind: "signal", name: s })}>
+                <ArrowDown size={12} />
+                {s}
+              </Button>
+            ))}
+            {module.source && <pre>{module.source}</pre>}
+          </details>
+        ))}
+      </div>
+    ) : (
+      <Empty
+        icon={FileCode2}
+        title="RTL source unavailable"
+        detail="No module hierarchy or source locations have been supplied. Source links are never inferred."
+      />
+    );
+  if (mode === "Verification")
+    return capture?.verification?.length ? (
+      <div className="verification-list">
+        {capture.verification.map((test, i) => (
+          <Button
+            variant="data"
+            key={i}
+            onClick={() => select({ kind: "event", name: test.name, value: test.description })}
+          >
+            <ShieldCheck size={16} />
+            <span>
+              {test.name}
+              <small>{test.description}</small>
+            </span>
+            <span className={`test-state ${test.status}`}>{test.status}</span>
+          </Button>
+        ))}
+      </div>
+    ) : (
+      <Empty
+        icon={ShieldCheck}
+        title="No verification results"
+        detail="Import test or assertion outcomes from a real execution capture. Compilation and regression require the processor backend."
+      />
+    );
+  return capture?.performance ? (
+    <div className="performance-grid">
+      {Object.entries(capture.performance).map(([name, value]) => (
+        <div key={name}>
+          <span>{name.replaceAll("_", " ")}</span>
+          <strong className="mono">{value}</strong>
+          <small>Reported by capture</small>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <Empty
+      icon={Activity}
+      title="Performance telemetry unavailable"
+      detail="No IPC, CPI, stall, or branch measurements are reported in this capture. Metrics will not be estimated."
+    />
+  );
 }

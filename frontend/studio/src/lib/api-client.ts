@@ -28,7 +28,7 @@ export class ApiClient {
     return response.json();
   }
 
-  static async post(endpoint: string, body?: any) {
+  static async post(endpoint: string, body?: unknown) {
     const init: RequestInit = {
       method: "POST",
       headers: {
@@ -47,7 +47,11 @@ export class ApiClient {
     return response.json();
   }
 
-  private static async httpError(method: string, endpoint: string, response: Response): Promise<Error> {
+  private static async httpError(
+    method: string,
+    endpoint: string,
+    response: Response,
+  ): Promise<Error> {
     const fallback = describeHttpStatus(method, endpoint, response.status);
     try {
       const text = await response.text();
