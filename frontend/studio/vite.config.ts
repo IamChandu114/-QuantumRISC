@@ -6,7 +6,7 @@ import { resolve } from "path";
 export default defineConfig({
   // base must match the backend mount path so asset URLs resolve correctly
   // when served via http://127.0.0.1:8000/studio
-  base: "/studio/",
+  base: "/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
