@@ -3,10 +3,13 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "path";
 
+// VITE_BASE_PATH controls the asset base:
+//   "/"         → standalone Vercel deployment (default)
+//   "/studio/"  → embedded under the main-site backend at /studio
+const base = process.env["VITE_BASE_PATH"] ?? "/";
+
 export default defineConfig({
-  // base must match the backend mount path so asset URLs resolve correctly
-  // when served via http://127.0.0.1:8000/studio
-  base: "/",
+  base,
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
