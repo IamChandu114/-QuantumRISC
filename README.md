@@ -558,6 +558,10 @@ Studio workbench will be accessible at: `http://127.0.0.1:5173/studio/`.
 
 ---
 
+**Live Demo:** Open the [QuantumRISC Studio](https://quantum-risc-fzm5.vercel.app/) and set the Backend Address to `https://quantumrisc-backend.onrender.com` to connect to the hosted backend. Note: backend health confirms service reachability; initialize a CPU session to access simulation state.
+
+---
+
 ## Repository Structure
 
 ```
