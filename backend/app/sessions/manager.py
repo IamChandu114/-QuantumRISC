@@ -360,7 +360,7 @@ class SessionManager:
             result = await self.compile_manager.compile(sources, session.testbench, session.build_path, session.workdir)
             stderr = result.stderr
             if not result.ok and not stderr.startswith(("IVERILOG_UNAVAILABLE", "BACKEND_CONFIGURATION_ERROR", "COMPILATION_FAILED")):
-                stderr = f"COMPILATION_FAILED: {stderr}"
+                stderr = f"COMPILATION_FAILED: {stderr}" if stderr else "COMPILATION_FAILED: Compilation did not produce an executable."
             session.compile = {
                 "ok": result.ok,
                 "returncode": result.returncode,

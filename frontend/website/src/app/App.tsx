@@ -894,7 +894,7 @@ function NavBar() {
             <Github size={13} /> GitHub
           </a>
           <a
-            href="/studio"
+            href="https://quantum-risc-fzm5.vercel.app/"
             target="_blank"
             rel="noreferrer"
             className="btn-primary px-4 py-1.5 rounded text-xs inline-flex items-center"

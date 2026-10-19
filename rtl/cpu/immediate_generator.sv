@@ -24,7 +24,7 @@ module immediate_generator(
 );
 
 
-always_comb begin
+always @* begin
 
     case(instruction[6:0])
 

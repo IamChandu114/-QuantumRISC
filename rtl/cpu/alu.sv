@@ -11,7 +11,7 @@ module alu(
 
 );
 
-always_comb begin
+always @* begin
 
     case(alu_control)
 

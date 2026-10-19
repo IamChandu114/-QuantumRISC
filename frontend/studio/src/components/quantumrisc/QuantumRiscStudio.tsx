@@ -539,7 +539,9 @@ function Overview({
                   <span>Compilation</span>
                   <strong>
                     {snapshot.compile?.ok
-                      ? "Success (0)"
+                      ? (snapshot.compile?.stderr && snapshot.compile.stderr.trim().length > 0
+                          ? "Success (with warnings)"
+                          : "Success (0)")
                       : snapshot.compile?.returncode !== undefined
                         ? `Exit ${snapshot.compile.returncode}`
                         : "Pending"}
@@ -1228,7 +1230,9 @@ function WorkspaceContent({
                 <strong>Compilation</strong>
                 <span>
                   {snapshot?.compile?.ok
-                    ? `Success (0)`
+                    ? (snapshot.compile?.stderr && snapshot.compile.stderr.trim().length > 0
+                        ? "Success (with warnings)"
+                        : `Success (0)`)
                     : snapshot?.compile?.returncode !== undefined
                       ? `Exit ${snapshot.compile.returncode}`
                       : "Not run"}

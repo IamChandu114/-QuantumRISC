@@ -54,10 +54,6 @@ module instruction_memory (
     //------------------------------------------------------------
     // Combinational Read
     //------------------------------------------------------------
-    always_comb begin
-
-        instruction = memory[address[9:2]];
-
-    end
+    assign instruction = memory[address[9:2]];
 
 endmodule

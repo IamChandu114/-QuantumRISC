@@ -56,12 +56,15 @@ class CompileManager:
             return CompileResult(False, -1, exc.stdout or "", "COMPILATION_FAILED: Icarus Verilog compilation timed out.")
         except OSError as exc:
             return CompileResult(False, -1, "", f"COMPILATION_FAILED: Unable to start Icarus Verilog: {exc}")
+        has_executable = out_file.is_file() and out_file.stat().st_size > 0
+        has_error = completed.returncode != 0 or not has_executable
+        ok = not has_error
         return CompileResult(
-            ok=completed.returncode == 0,
-            returncode=completed.returncode or 0,
+            ok=ok,
+            returncode=completed.returncode if completed.returncode is not None else (0 if ok else -1),
             stdout=completed.stdout or "",
             stderr=completed.stderr or "",
-            executable=out_file if completed.returncode == 0 else None,
+            executable=out_file if ok else None,
         )
 
     def _run_subprocess(self, cmd: list[str], workdir: Path) -> subprocess.CompletedProcess[str]:
