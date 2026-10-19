@@ -33,8 +33,8 @@ export default function InstallationPage() {
             <div className="p-4 rounded-lg border border-border bg-card">
               <h3 className="font-mono font-semibold mb-3 text-sm">Step 1: Clone Repository</h3>
               <pre className="bg-background p-3 rounded text-xs overflow-x-auto">
-                <code>{`git clone https://github.com/IamChandu114/QuantumRISC.git
-cd quantumrisc`}</code>
+                <code>{`git clone https://github.com/IamChandu114/-QuantumRISC.git
+cd -QuantumRISC`}</code>
               </pre>
             </div>
 

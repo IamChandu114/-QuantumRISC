@@ -19,4 +19,4 @@ The core Studio is driven by live backend state. Cache, branch prediction, verif
 
 ### Repository
 
-https://github.com/IamChandu114/QuantumRISC
+https://github.com/IamChandu114/-QuantumRISC

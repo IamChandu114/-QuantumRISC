@@ -81,7 +81,7 @@ export default function FAQPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
             <a
-              href="https://github.com/IamChandu114/QuantumRISC/discussions"
+              href="https://github.com/IamChandu114/-QuantumRISC/discussions"
               target="_blank"
               rel="noopener noreferrer"
               className="px-4 py-2 rounded-md border border-border hover:border-primary hover:bg-primary/5 transition-all text-center font-medium"
@@ -89,7 +89,7 @@ export default function FAQPage() {
               GitHub Discussions
             </a>
             <a
-              href="https://github.com/IamChandu114/QuantumRISC/issues"
+              href="https://github.com/IamChandu114/-QuantumRISC/issues"
               target="_blank"
               rel="noopener noreferrer"
               className="px-4 py-2 rounded-md border border-border hover:border-primary hover:bg-primary/5 transition-all text-center font-medium"

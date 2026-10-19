@@ -32,7 +32,7 @@ This release delivers a live engineering workstation for architecture exploratio
 - Frontend production build passes
 - Live backend session and websocket integration are in place
 - Studio routes consume snapshot-driven session data
-- GitHub repository: https://github.com/IamChandu114/QuantumRISC
+- GitHub repository: https://github.com/IamChandu114/-QuantumRISC
 
 ### Scope
 

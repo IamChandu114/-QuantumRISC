@@ -889,7 +889,7 @@ function NavBar() {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <a href="https://github.com/IamChandu114/QuantumRISC" target="_blank" rel="noreferrer"
+          <a href="https://github.com/IamChandu114/-QuantumRISC" target="_blank" rel="noreferrer"
             className="btn-ghost px-3 py-1.5 rounded text-xs flex items-center gap-2">
             <Github size={13} /> GitHub
           </a>
@@ -979,7 +979,7 @@ function HeroSection() {
             <a href="#rtl" className="btn-ghost px-6 py-3 rounded flex items-center gap-2 text-sm">
               <Code2 size={15} /> RTL Explorer
             </a>
-            <a href="https://github.com/IamChandu114/QuantumRISC" target="_blank" rel="noreferrer"
+            <a href="https://github.com/IamChandu114/-QuantumRISC" target="_blank" rel="noreferrer"
               className="btn-ghost px-6 py-3 rounded flex items-center gap-2 text-sm">
               <Github size={15} /> Source
             </a>
@@ -2675,7 +2675,7 @@ function DemoVideoSection() {
               className="btn-primary px-8 py-3.5 rounded flex items-center gap-3 text-sm font-semibold">
               <Play size={16} fill="currentColor"/> Watch Full Demo
             </button>
-            <a href="https://github.com/IamChandu114/QuantumRISC" target="_blank" rel="noreferrer"
+            <a href="https://github.com/IamChandu114/-QuantumRISC" target="_blank" rel="noreferrer"
               className="btn-outline px-8 py-3.5 rounded flex items-center gap-3 text-sm">
               <Github size={16}/> View Source on GitHub
             </a>
@@ -2712,7 +2712,7 @@ function FooterSection() {
               documentation.
             </p>
             <div className="flex gap-3 mt-6">
-              <a href="https://github.com/IamChandu114/QuantumRISC" target="_blank" rel="noreferrer" className="btn-outline px-4 py-2 rounded text-xs flex items-center gap-2">
+              <a href="https://github.com/IamChandu114/-QuantumRISC" target="_blank" rel="noreferrer" className="btn-outline px-4 py-2 rounded text-xs flex items-center gap-2">
                 <Github size={12}/> Source Code
               </a>
               <a href="/docs" target="_blank" rel="noreferrer" className="btn-ghost px-4 py-2 rounded text-xs flex items-center gap-2">
