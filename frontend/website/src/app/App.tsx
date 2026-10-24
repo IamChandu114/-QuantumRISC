@@ -2338,48 +2338,13 @@ function VideoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           {/* Video player */}
           <div>
             <div className="relative rounded-sm overflow-hidden video-frame-glow" style={{paddingTop:"56.25%", background:"#000"}}>
-              <div className="absolute inset-0 flex flex-col items-center justify-center"
-                style={{background:"linear-gradient(135deg,#060810 0%,#0a1018 50%,#060810 100%)"}}>
-                {/* Animated processor thumbnail */}
-                <div className="absolute inset-0 eng-grid opacity-30"/>
-                <div className="demo-scanline"/>
-                <svg viewBox="0 0 560 315" className="absolute inset-0 w-full h-full opacity-25" preserveAspectRatio="xMidYMid slice">
-                  {/* Pipeline timing diagram preview */}
-                  {["IF","ID","EX","ME","WB"].map((s,i)=>(
-                    <g key={s}>
-                      <rect x={40+i*100} y={40} width={80} height={30} rx="3"
-                        fill={["#00d4ff","#00ff88","#ff9900","#ff3366","#c87941"][i]+"20"}
-                        stroke={["#00d4ff","#00ff88","#ff9900","#ff3366","#c87941"][i]+"60"} strokeWidth="1"/>
-                      <text x={80+i*100} y={60} textAnchor="middle" fill={["#00d4ff","#00ff88","#ff9900","#ff3366","#c87941"][i]} fontSize="11" fontFamily="JetBrains Mono" fontWeight="700">{s}</text>
-                    </g>
-                  ))}
-                  {[0,1,2,3,4,5].map(ii=>(
-                    ["IF","ID","EX","ME","WB"].map((s,ci)=>(
-                      <rect key={`${ii}-${ci}`} x={40+ci*100} y={90+ii*32} width={80} height={24} rx="2"
-                        fill={["#00d4ff","#00ff88","#ff9900","#ff3366","#c87941"][ci]+(ii===2&&ci===2?"40":"15")}
-                        stroke={["#00d4ff","#00ff88","#ff9900","#ff3366","#c87941"][ci]+(ii===2&&ci===2?"80":"30")} strokeWidth="0.8"/>
-                    ))
-                  ))}
-                  {/* Code lines */}
-                  {Array.from({length:8}).map((_,i)=>(
-                    <rect key={i} x={560*0.7} y={50+i*22} width={560*0.26*(0.4+Math.random()*0.5)} height={10} rx="2" fill="rgba(0,212,255,0.1)"/>
-                  ))}
-                </svg>
-                {/* Centered content */}
-                <div className="relative z-10 text-center px-6">
-                  <div className="w-16 h-16 rounded-full bg-[#00d4ff]/10 border border-[#00d4ff]/30 flex items-center justify-center mx-auto mb-5">
-                    <Play size={22} className="text-[#00d4ff] ml-1"/>
-                  </div>
-                  <h3 className="text-white text-lg font-bold mb-2">Live Demo Preview</h3>
-                  <p className="mono text-[11px] text-[#404050] leading-relaxed max-w-xs">
-                    The production demo is presented through the live Studio and documentation portal.
-                  </p>
-                  <div className="mt-5 glass px-4 py-2.5 rounded-sm inline-flex items-center gap-2">
-                    <span className="mono text-[10px] text-[#404050]">QuantumRISC</span>
-                    <span className="mono text-[11px] text-[#00ff88]">Live engineering walkthrough</span>
-                  </div>
-                </div>
-              </div>
+              <iframe
+                src="https://drive.google.com/file/d/1cLVUcNctoUcaaNzLdwd95bf4Qlg0RsVB/preview"
+                title="QuantumRISC Demo Video"
+                className="absolute inset-0 w-full h-full border-0"
+                allow="autoplay; encrypted-media; fullscreen"
+                allowFullScreen
+              />
             </div>
 
             {/* Now playing */}
